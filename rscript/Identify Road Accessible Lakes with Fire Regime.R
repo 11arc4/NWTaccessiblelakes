@@ -42,6 +42,7 @@ for (i in 1:length(workunitlist)){
   } 
 }
 rm(int, waterbody)
+
 MasterAccess <- MasterAccess %>% 
   filter(TYPE_TEXT=="Lake")%>% 
   st_zm()
@@ -61,6 +62,7 @@ MasterAccess <- MasterAccess %>% mutate(Depth=NA,
                                         AxisRatio=NA, 
                                         Shoreline=NA, 
                                         Volume=NA)
+<<<<<<< HEAD
 #Skip a couple weird shaped lakes (677, 5377, 6087)
 #for(i in c(1:676, 678:nrow(MasterAccess))){
   for(i in c(6088:nrow(MasterAccess))){
@@ -106,7 +108,7 @@ listfire <- st_intersects(roadaccessible1k, fire2000 )
 roadaccessible1k$MostRecentBurn <-sapply(1:length(listfire), function(x){
   t<- listfire[[x]]
   years <- fire2000$fireyear[t]
-  
+
   if(length(t)>0){
     return(years[order(years, decreasing = T)][1])
   } else {
