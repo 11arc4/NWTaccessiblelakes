@@ -99,9 +99,11 @@ MasterAccess$DistancetoRoad <-  as.numeric(st_distance(MasterAccess ,
                                                        roads %>% filter(!RTNUMBER1 %in% c(8,10,"Unknown")| grepl("Kakisa", roads$RTENAME1EN)) %>% st_union))
 roadaccessible1k <- MasterAccess %>% filter(DistancetoRoad<1000)%>% st_zm()
 
-rm(roadaccessible)
+
 #Add fire attributes  ----
-roadaccessible <- st_read(file.path(root, "data", "Road Accessible Lakes_1km.shp"))%>% st_transform(4617)
+roadaccessible1k <- st_read(file.path(root, "data", "Road Accessible Lakes_1km.shp"))%>% st_transform(4617)
+roadaccessible1k$DistancetoRoad <-  as.numeric(st_distance(MasterAccess ,
+                                           roads %>% filter(!RTNUMBER1 %in% c(8,10,"Unknown")| grepl("Kakisa", roads$RTENAME1EN)) %>% st_union))
 
 fire <- st_read(file.path(shapefile.dir, "ENR Fire History", "ENR_FMD_FireHistory.shp")) %>% st_zm() %>% st_transform(proj_crs)
 sf_use_s2(FALSE)
@@ -157,14 +159,16 @@ ggplot()+
   geom_sf(data=roads2, aes(color= RTENAME1EN), show.legend = F)+
   geom_sf(data=bounds, color="gray", fill=NA)+
   #geom_sf(data=roads_buffer, fill="yellow", color=NA)+
-  geom_sf(data=proposedsites, aes(fill=FireHistCat), color=NA)+
-  geom_sf(data=additional2ksites %>% 
-            filter(FireHistCat %in% c("2023 and ~10 years ago", "~10 years ago")), aes(fill=FireHistCat), color=NA)+
+  # geom_sf(data=proposedsites, aes(fill=FireHistCat), color=NA)+
+  # geom_sf(data=additional2ksites %>% 
+  #           filter(FireHistCat %in% c("2023 and ~10 years ago", "~10 years ago")),
+  #         aes(fill=FireHistCat), color=NA)+
+   geom_sf(data=siteselection2, aes(fill=FireHistCat), color=NA)+
   coord_sf(xlim=c(-116.75, -117.5), ylim=c(60.86, 61.1))+ #Kakisa area
   labs(fill=NULL)
 #coord_sf(xlim=c(-116, -118), ylim=c(60.7, 61.3)) #Dehcho + some south slave
 #coord_sf(xlim=c(-110, -125), ylim=c(60, 63.5)) #entire Map
-ggsave(file.path(root, "figures", "Kakisa accessible lakes Map 2.png"), units="in",  height=8, width= 8)
+ggsave(file.path(root, "figures", "Kakisa accessible lakes Map 3.png"), units="in",  height=8, width= 8)
 
 roadaccessible1k %>% st_intersects()
 bounds <- st_bbox(c(xmin=-116.75,xmax=-117.5, ymin=60.88, ymax=61.08), crs= st_crs(proj_crs)) %>% st_as_sfc()
@@ -202,6 +206,7 @@ ggplot()+
 
 
 ###Add additional sites
+MasterAccess<- st_read(file.path(root, "data", "Road Accessible Lakes_2km.shp"))
 
 additional2ksites <- MasterAccess %>% st_intersection(bounds)
 listfire <- st_intersects(additional2ksites, fire2000 )
@@ -243,3 +248,52 @@ additional2ksites$Area <- st_area(additional2ksites)
 
 View(additional2ksites %>% 
   filter(FireHistCat =="2023 and ~10 years ago"))
+
+
+
+
+ggplot()+
+  geom_sf(data=nwt, fill="white")+
+  geom_sf(data=fire %>%
+            filter(fireyear %in% c(2010:2023)) ,
+          aes(fill=factor(fireyear, levels= c(2010:2023))),
+          alpha=0.3, color=NA, show.legend = T)+
+  geom_sf(data=roads2, aes(color= RTENAME1EN), show.legend = F)+
+  #coord_sf(xlim=c(-116.75, -117.5), ylim=c(60.86, 61.1))+ #Kakisa area
+  labs(fill=NULL)+
+  coord_sf(xlim=c(-116, -120), ylim=c(60.7, 63)) #Dehcho + some south slave
+
+
+siteselection <- additional2ksites %>% 
+  filter(DistancetoRoad<1000 | FireHistCat %in% c("2023 and ~10 years ago", "~10 years ago")) %>% 
+  mutate(Area = as.numeric(Area)) %>% 
+  filter(is.na(LAKENAME_1))
+
+siteselection2 <- siteselection %>% filter(Area>=quantile(siteselection$Area, 0.7)) %>% 
+  group_by(FireHistCat)  %>% 
+  filter(rank(DistancetoRoad) <=12)
+
+#Now pick the 12 in each category that are closes to the road
+  
+sumSites <- siteselection2 %>%
+  st_drop_geometry()%>% 
+  summarise(n())
+
+ggplot(data=siteselection %>%st_drop_geometry() %>% filter(!is.na(FireHistCat)), aes(x= Area, fill=(Area>=quantile(siteselection$Area, 0.7))))+
+  geom_histogram()+
+  facet_wrap(~FireHistCat)+
+  theme_classic()+ 
+  theme(legend.position = "bottom")
+
+ggplot(data=siteselection %>%st_drop_geometry() %>% filter(!is.na(FireHistCat)), aes(x= Area, y=DistancetoRoad))+
+  geom_point()+
+  facet_wrap(~FireHistCat)+
+  theme_classic()
+st_write(siteselection2 %>% select(Description = FireHistCat), "Small ponds selected_CI Fire_2024.kml", driver = "kml", delete_dsn = TRUE)
+
+st_write(siteselection2,  file.path("data", "Small ponds selected_CI Fire_2024.shp"))
+
+
+
+siteselection2<- st_read( file.path("data", "Small ponds selected_CI Fire_2024.shp"))
+st_write(siteselection2 %>% st_centroid(), file.path("data", "Centroid Small ponds selected_CI Fire_2024.shp"))
